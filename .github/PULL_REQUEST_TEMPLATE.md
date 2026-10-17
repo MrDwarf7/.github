@@ -20,7 +20,8 @@
 
 ... Your description here ...
 
-<!-- STAKK_BODY_START --><!-- STAKK_BODY_END -->
+<!-- STAKK_BODY_START -->
+<!-- STAKK_BODY_END -->
 
 ## Type of change
 
