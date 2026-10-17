@@ -1,0 +1,21 @@
+# Assigns the repo owner to PRs they open (web, gh, stakk, anything).
+# Other authors are skipped: GitHub can't assign users without repo access.
+name: Auto-assign owner
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign:
+    if: github.event.pull_request.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-assignee "$AUTHOR"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}

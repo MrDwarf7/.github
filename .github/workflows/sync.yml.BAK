@@ -1,0 +1,63 @@
+# Disabled: rename to sync.yml to enable.
+#
+# Copies everything under sync/ into every non-fork, non-archived repo
+# (same relative paths) and opens/updates a PR there. Never pushes to a
+# default branch; re-running is safe (branch is force-updated, PR reused).
+#
+# Requires secret SYNC_TOKEN: fine-grained PAT, "All repositories", with
+#   Contents: write, Pull requests: write, Workflows: write
+# Workflows is mandatory for anything under .github/workflows/.
+name: Sync shared files
+
+on:
+  push:
+    branches: [main]
+    paths: ["sync/**"]
+  workflow_dispatch:
+
+concurrency: sync
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      BRANCH: chore/sync-shared-files
+      TITLE: "chore: sync shared files"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Sync into each repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          src="$PWD/sync"
+
+          # ponytail: fail-fast on the first broken repo; re-run after fixing it.
+          gh repo list "$GITHUB_REPOSITORY_OWNER" --source --no-archived --limit 1000 \
+            --json nameWithOwner,isEmpty -q '.[] | select(.isEmpty | not) | .nameWithOwner' |
+          while read -r repo; do
+            [ "$repo" = "$GITHUB_REPOSITORY" ] && continue
+            dir="$RUNNER_TEMP/$repo"
+            gh repo clone "$repo" "$dir" -- --depth 1 --quiet
+            cp -r "$src/." "$dir/"
+            git -C "$dir" add -A
+            if git -C "$dir" diff --cached --quiet; then
+              echo "$repo: up to date"
+              continue
+            fi
+            git -C "$dir" switch -q -c "$BRANCH"
+            git -C "$dir" commit -q -m "$TITLE"
+            git -C "$dir" push -q -f origin "$BRANCH"
+            if [ -z "$(gh pr list -R "$repo" --head "$BRANCH" --json number -q '.[].number')" ]; then
+              gh pr create -R "$repo" --head "$BRANCH" --title "$TITLE" \
+                --assignee "$GITHUB_REPOSITORY_OWNER" \
+                --body "Synced from $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+            fi
+            echo "$repo: synced"
+          done
