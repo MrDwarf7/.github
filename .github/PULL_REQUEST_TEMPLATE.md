@@ -20,6 +20,8 @@
 
 ... Your description here ...
 
+<!-- STAKK_BODY_START --><!-- STAKK_BODY_END -->
+
 ## Type of change
 
 > Please delete options that are not relevant.
